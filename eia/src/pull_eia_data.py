@@ -1,6 +1,6 @@
 ####################################
 # Author: Jon Willinger
-# Date: 2024-11-21
+# Date: 2024-12-09
 # Notes: 
 # api key registration url: https://www.eia.gov/opendata/register.php (api license terms here).
 # api key name: Jon Willinger (Can be anyone; email is available to the team).
@@ -13,7 +13,7 @@
 #
 ####################################
 
-import os, csv, re
+import os
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
@@ -77,6 +77,26 @@ class eiaapi():
 
         def _process_into_utilization(df_dict):
             
+            def __transform_df_for_azure(df):
+                '''
+                    Requires percent-utilization,
+                    and names.
+                '''
+                df_transform = pd.DataFrame({})
+                for col in df.columns:
+                    if col == "period":
+                        val = df[col].unique()[0]
+                        df_transform["Date"] = pd.Series(val)
+                    if col == "area-name":
+                        tr_cols = [tr_col.replace(" ", "") for tr_col in df[col].to_list()]
+                    if col == "percent-utilization":
+                        tr_vals = df[col].to_list()
+
+                for k, v in zip(tr_cols, tr_vals):
+                    df_transform[k] = pd.Series(v)
+                
+                return df_transform[["Date", "U.S.", "PADD3"]]
+
             df_yup = pd.DataFrame({})
             df_yrl = pd.DataFrame({})
             df_ginp = pd.DataFrame({})
@@ -96,12 +116,12 @@ class eiaapi():
             df_ = df_yrl.merge(right=df_ginp[columns], how="inner", on=merge_columns, suffixes=("", ".ginp"))
             filter_columns = columns.copy(); filter_columns.extend(["series-description.ginp", "value.ginp", "units.ginp"])
             df_eia = df_[filter_columns]
-            df_eia.drop(labels=["product-name"], axis=1, inplace=True)
+            df_eia = df_eia.drop(labels=["product-name"], axis=1)
             map_names = {"series-description":"output-description", "value":"output-value", "units":"output-units", 
                          "series-description.ginp":"input-description", "value.ginp":"input-value", "units.ginp":"input-units"}
             map = {"output-description":str, "output-value":float, "output-units":str, 
                          "input-description":str, "input-value":float, "input-units":str}
-            df_eia.rename(columns=map_names, inplace=True)
+            df_eia = df_eia.rename(columns=map_names)
             df_eia = df_eia.astype(map)
             df_eia["percent-utilization"] = (df_eia["input-value"]/df_eia["output-value"])*100
             df_eia["percent-utilization"] = df_eia["percent-utilization"].round(2)
@@ -112,8 +132,9 @@ class eiaapi():
             df_eia_fil = df_eia[(df_eia["period"]==datetime_friday) & (df_eia["area-name"].isin(area_names))][merge_columns]
             if df_eia_fil.empty:
                 df_eia_fil = df_eia[(df_eia["period"]==datestr_prev_friday) & (df_eia["area-name"].isin(area_names))][merge_columns]
-            
-            return df_eia_fil
+            df_eia_fil.reset_index(drop=True, inplace=True)
+            df_eia_final = __transform_df_for_azure(df_eia_fil)
+            return df_eia_final
 
         # Entry:
         # ``````
