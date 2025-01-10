@@ -28,8 +28,8 @@ NG_HENRY_HUB_NATURAL_GAS_FUTURES = "NG Henry Hub Natural Gas Futures"
 class CMEDatamineAPI:
 
     def __init__(self):
-        self.api_id = os.environ["API_ID"]
-        self.api_pw = os.environ["API_PW"]
+        self.api_id = os.environ["CME_API_ID"]
+        self.api_pw = os.environ["CME_API_PW"]
         self.base_endpoint = "https://datamine.cmegroup.com/cme/api/v1/download"
 
     def get_dfs_from_fid_dict(self, fid_dict):
@@ -214,6 +214,7 @@ class CMEDatamineAPI:
 
         for i in range(7):
             i, last_bus_datetime = _get_last_business_day(today_datetime=today_datetime, n_past_days=i)
+            # Force here:
             fid_date = last_bus_datetime.strftime("%Y%m%d")
             fid_endpoint = f"{fid_date}-{fid}"
             response, url = _execute_call(fid_endpoint)
